@@ -7,7 +7,16 @@
 #include "twolocks.h"
 
 /********************************************************************************
- Document your resource order here. 
+ The deadlock initially occurred because of bill and ben requesting locks A and B 
+ to hold them both at the same. Initially bill would request A, then B, then hold them both.
+ ben requested B, then A, then held them both. The deadlock occurred when bill held A and 
+ wanted B, and simultaneously ben held B and wanted A. To resolve this, I simply reordered
+ the order that they requested the locks so that they were requested in the same order,
+ removing the circular requests and deadlock. 
+ 
+ Therefore, I made it so that bill also requested lock B before requesting lock A (same order as ben). 
+ This way, if bill holds B and ben requests B, ben will not be holding A 
+ at the same time which created the deadlock in the first place. 
 ********************************************************************************/
 
 
@@ -41,8 +50,8 @@ static void bill(void * unusedpointer, unsigned long unusedint)
                 
                 lock_release(lockb);
 
-                lock_acquire(locka);
                 lock_acquire(lockb);
+                lock_acquire(locka);
 
                                         /* Bill now holds both locks and can do
                                          what ever bill needs to do while holding

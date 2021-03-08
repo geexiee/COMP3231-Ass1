@@ -17,10 +17,10 @@
 
 data_item_t * item_buffer[BUFFER_SIZE+1];
 
-
-
 volatile int head, tail;
-
+struct cv *buffer_full;
+struct cv *buffer_empty;
+struct lock *buffer_lock;
 
 /* consumer_receive() is called by a consumer to request more data. It
    should block on a sync primitive if no data is available in your
@@ -30,17 +30,14 @@ data_item_t * consumer_receive(void)
 {
         data_item_t * item;
 
-
+        lock_acquire(buffer_lock);
         while(head == tail) {
-                /* busy wait */
+                cv_wait(buffer_empty, buffer_lock);
         }
         item = item_buffer[tail];
         tail = (tail + 1) % BUFFLEN;
-
-        
-        /******************
-         * Remove above here
-         */
+        cv_broadcast(buffer_full, buffer_lock);
+        lock_release(buffer_lock);
 
         return item;
 }
@@ -51,11 +48,14 @@ data_item_t * consumer_receive(void)
 
 void producer_send(data_item_t *item)
 {
+        lock_acquire(buffer_lock);
         while((head + 1) % BUFFLEN == tail) {
-                /* busy wait */
+                cv_wait(buffer_full, buffer_lock);
         }
         item_buffer[head] = item;
         head = (head + 1) % BUFFLEN;
+        cv_broadcast(buffer_empty, buffer_lock);
+        lock_release(buffer_lock);
 }
 
 
@@ -67,11 +67,17 @@ void producer_send(data_item_t *item)
 void producerconsumer_startup(void)
 {
         head = tail = 0;
+        buffer_full = cv_create("full");
+        buffer_empty = cv_create("empty");
+        buffer_lock = lock_create("buffer_lock");
 
 }
 
 /* Perform any clean-up you need here */
 void producerconsumer_shutdown(void)
 {
+        cv_destroy(buffer_empty);
+        cv_destroy(buffer_full);
+        lock_destroy(buffer_lock);
 }
 

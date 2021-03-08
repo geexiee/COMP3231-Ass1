@@ -9,7 +9,17 @@
  * Declare any variables you need here to implement and
  *  synchronise your queues and/or requests.
  */
+#define BUFFSIZE 1000
+#define BUFFLEN (BUFFSIZE+1)
 
+
+// array of requests that we're using as a queue/buffer
+request_t * buffer[BUFFLEN];
+volatile int head, tail;
+
+struct cv *buffer_full;
+struct cv *buffer_empty;
+struct lock *buffer_lock;
 
 /* work_queue_enqueue():
  *
@@ -30,7 +40,14 @@
 
 void work_queue_enqueue(request_t *req)
 {
-        (void) req; /* Avoid compiler error */
+        lock_acquire(buffer_lock);
+        while((head + 1) % BUFFLEN == tail) {
+                cv_wait(buffer_full, buffer_lock);
+        }
+        buffer[head] = req;
+        head = (head + 1) % BUFFLEN;
+        cv_broadcast(buffer_empty, buffer_lock);
+        lock_release(buffer_lock);
 }
 
 /* 
@@ -50,8 +67,18 @@ void work_queue_enqueue(request_t *req)
 
 request_t *work_queue_get_next(void)
 {
+        request_t * req;
 
-        return NULL;
+        lock_acquire(buffer_lock);
+        while(head == tail) {
+                cv_wait(buffer_empty, buffer_lock);
+        }
+        req = buffer[tail];
+        tail = (tail + 1) % BUFFLEN;
+        cv_broadcast(buffer_full, buffer_lock);
+        lock_release(buffer_lock);
+
+        return req;
 }
 
 
@@ -71,7 +98,11 @@ request_t *work_queue_get_next(void)
 
 int work_queue_setup(void)
 {
-        return ENOSYS;
+        head = tail = 0;
+        buffer_full = cv_create("full");
+        buffer_empty = cv_create("empty");
+        buffer_lock = lock_create("buffer_lock");
+        return 0;
 
 }
 
@@ -88,5 +119,7 @@ int work_queue_setup(void)
 
 void work_queue_shutdown(void)
 {
-
+        cv_destroy(buffer_empty);
+        cv_destroy(buffer_full);
+        lock_destroy(buffer_lock);
 }
