@@ -5,13 +5,8 @@
 #include <kern/errno.h>
 #include "client_server.h"
 
-/*
- * Declare any variables you need here to implement and
- *  synchronise your queues and/or requests.
- */
 #define BUFFSIZE 1000
 #define BUFFLEN (BUFFSIZE+1)
-
 
 // array of requests that we're using as a queue/buffer
 request_t * buffer[BUFFLEN];
@@ -98,10 +93,17 @@ request_t *work_queue_get_next(void)
 
 int work_queue_setup(void)
 {
+        // initialising head/tail tracker and synchronisation primitives
         head = tail = 0;
         buffer_full = cv_create("full");
+        if (buffer_full == NULL) 
+                return 1;
         buffer_empty = cv_create("empty");
+        if (buffer_empty == NULL)
+                return 1;
         buffer_lock = lock_create("buffer_lock");
+        if (buffer_lock == NULL) 
+                return 1;
         return 0;
 
 }
